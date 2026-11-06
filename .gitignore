@@ -218,3 +218,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# Visual Studio IDE files
+.vs/
+*.suo
+*.user
+*.sln.docstates
+
+# Python Virtual Environments (additional patterns)
+venv/
+ENV/
+backend/venv/
