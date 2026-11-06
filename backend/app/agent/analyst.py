@@ -10,7 +10,6 @@ class LeadAnalystAgent:
         self.profiler = DataProfiler(file_path)
         self.tools = DataAnalysisTools(file_path)
         
-     \
         api_key = os.getenv("GEMINI_API_KEY")
         self.client = genai.Client(api_key=api_key) if api_key else None
 
@@ -21,7 +20,6 @@ class LeadAnalystAgent:
         executed_tool = "general_profiling"
         results = {}
 
-       
         if "correlation" in query_lower or "علاقة" in query_lower or "ارتباط" in query_lower:
             executed_tool = "calculate_correlations"
             results = self.tools.calculate_correlations()
@@ -31,7 +29,6 @@ class LeadAnalystAgent:
         else:
             results = profile
 
-   
         ai_insights = "AI analysis performed successfully based on dataset metrics."
         if self.client:
             prompt = f"""
