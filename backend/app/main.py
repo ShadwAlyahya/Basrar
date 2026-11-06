@@ -1,22 +1,18 @@
 from fastapi import FastAPI
+from app.core.database import engine, Base
+from app.api import auth, datasets, analysis
 
-# Initialize Basrar FastAPI Application
+Base.metadata.create_all(bind=engine)
+
 app = FastAPI(
-    title="Basrar API",
-    description="AI-Powered Autonomous Data Analyst Backend",
+    title="Basrar AI Data Analytics Platform",
     version="1.0.0"
 )
 
-# Root Endpoint
-@app.get("/")
-def read_root():
-    return {
-        "system": "Basrar",
-        "status": "Active",
-        "message": "Welcome to the AI-Powered Autonomous Data Analyst platform."
-    }
+app.include_router(auth.router)
+app.include_router(datasets.router)
+app.include_router(analysis.router)
 
-# Health Check Endpoint
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
+@app.get("/")
+def root():
+    return {"message": "Welcome to Basrar API - System is fully running!"}
