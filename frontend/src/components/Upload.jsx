@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { UploadCloud, FileSpreadsheet, ArrowRight, CheckCircle2, Cpu } from 'lucide-react';
 import Header from './Header';
 import logoImg from '../basrar-logo.jpg';
@@ -7,24 +8,50 @@ import logoImg from '../basrar-logo.jpg';
 export default function Upload() {
     const navigate = useNavigate();
     const [fileName, setFileName] = useState('');
+    const [selectedFile, setSelectedFile] = useState(null);
     const [analysisGoal, setAnalysisGoal] = useState('');
     const [isUploading, setIsUploading] = useState(false);
+    const [, setError] = useState(null);
 
     const lang = localStorage.getItem('basrar_lang') || 'EN';
 
     const handleFileChange = (e) => {
         if (e.target.files && e.target.files[0]) {
+            setSelectedFile(e.target.files[0]);
             setFileName(e.target.files[0].name);
         }
     };
 
-    const handleProcessDataset = (e) => {
+    const handleProcessDataset = async (e) => {
         e.preventDefault();
+        if (!selectedFile) return;
+
         setIsUploading(true);
-        setTimeout(() => {
+        setError(null);
+
+        try {
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            const uploadRes = await axios.post('http://localhost:8000/agent/sessions', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            const sessionId = uploadRes.data.session_id;
+            localStorage.setItem('basrar_session_id', sessionId);
+
+            await axios.post(`http://localhost:8000/agent/sessions/${sessionId}/run`, {
+                goal: analysisGoal
+            });
+
             setIsUploading(false);
             navigate('/dashboard');
-        }, 1500);
+        } catch (err) {
+            console.error("Agent Processing Error:", err);
+            setIsUploading(false);
+            setError("Error processing dataset with AI agent.");
+            alert(lang === 'AR' ? "حدث خطأ أثناء معالجة الملف عبر الذكاء الاصطناعي." : "Error processing dataset with AI agent.");
+        }
     };
 
     return (

@@ -61,7 +61,12 @@ export default function Dashboard() {
     const dashboardRef = useRef(null);
     const reportRef = useRef(null);
     const theme = COLOR_PRESETS[selectedPreset];
-    const API_URL = 'http://localhost:8000/analysis/query';
+
+    const sessionId = localStorage.getItem('basrar_session_id');
+    const API_URL = sessionId
+        ? `http://localhost:8000/agent/sessions/${sessionId}/dashboard`
+        : 'http://localhost:8000/analysis/query';
+
     const lang = localStorage.getItem('basrar_lang') || 'EN';
 
     useEffect(() => {
@@ -70,12 +75,14 @@ export default function Dashboard() {
             setError(null);
             try {
                 const token = localStorage.getItem('token');
-                const response = await axios.post(API_URL, {
-                    dataset_id: 1,
-                    query: "Generate dynamic KPI metrics and multi-chart analytics based on dataset structure"
-                }, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const response = sessionId
+                    ? await axios.get(API_URL)
+                    : await axios.post(API_URL, {
+                        dataset_id: 1,
+                        query: "Generate dynamic KPI metrics and multi-chart analytics based on dataset structure"
+                    }, {
+                        headers: token ? { Authorization: `Bearer ${token}` } : {}
+                    });
 
                 setData({
                     ...response.data,
@@ -153,7 +160,7 @@ export default function Dashboard() {
             }
         };
         fetchDashboardData();
-    }, [lang]);
+    }, [lang, sessionId]);
 
     const handleExportCSV = () => {
         const csvContent = "data:text/csv;charset=utf-8,Metric,Value,Change\n" +
@@ -180,13 +187,11 @@ export default function Dashboard() {
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const pdfHeight = pdf.internal.pageSize.getHeight();
 
-            // الصفحة الأولى: التقرير السردي الإنجليزي المنظم والواضح جداً
             const canvasReport = await html2canvas(reportEl, { scale: 2, useCORS: true, backgroundColor: '#FFFFFF' });
             const imgReportData = canvasReport.toDataURL('image/png');
             const reportHeight = (canvasReport.height * pdfWidth) / canvasReport.width;
             pdf.addImage(imgReportData, 'PNG', 0, 10, pdfWidth, Math.min(reportHeight, pdfHeight - 20));
 
-            // الصفحة الثانية: الداشبورد غير المضغوط والمرتب بوضوح
             pdf.addPage();
             const canvasDash = await html2canvas(dashEl, { scale: 2, useCORS: true, backgroundColor: theme.bg });
             const imgDashData = canvasDash.toDataURL('image/png');
@@ -204,7 +209,6 @@ export default function Dashboard() {
     return (
         <div style={{ padding: '32px', minHeight: '100vh', backgroundColor: '#EAE2D6', color: '#1E293B', fontFamily: 'system-ui, sans-serif', direction: lang === 'AR' ? 'rtl' : 'ltr' }}>
 
-            {/* الشريط العلوي */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', padding: '20px 24px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.04)', marginBottom: '24px', border: '1px solid #D8CEC0', flexWrap: 'wrap', gap: '15px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <button
@@ -268,7 +272,6 @@ export default function Dashboard() {
                 </div>
             )}
 
-            {/* تقرير فهم وتنظيف البيانات (المرئي الأصلي في الواجهة بالبطاقات والأيقونات) */}
             <div style={{ backgroundColor: '#FFFFFF', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.04)', marginBottom: '24px', border: '1px solid #D8CEC0' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
                     <Wrench style={{ width: '20px', height: '20px', color: '#3B82F6' }} />
@@ -311,7 +314,6 @@ export default function Dashboard() {
                 ))}
             </div>
 
-            {/* التقرير السردي المخصص للتصدير (باللغة الإنجليزية حصرياً وبتنسيق نظيف وواسع ومريح للعين) */}
             <div style={{ position: 'fixed', left: '-9999px', top: '0px', width: '210mm', opacity: 1, pointerEvents: 'none' }}>
                 <div ref={reportRef} style={{ backgroundColor: '#FFFFFF', color: '#0F172A', padding: '50px', fontFamily: 'system-ui, sans-serif', direction: 'ltr', width: '210mm', minHeight: '297mm', boxSizing: 'border-box' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #0F172A', paddingBottom: '20px', marginBottom: '35px' }}>
@@ -374,7 +376,6 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* الداشبورد الرئيسي والرسوم البيانية (غير مضغوط ومرتب بعناية فائقة) */}
             <div ref={dashboardRef} style={{ backgroundColor: theme.bg, color: '#FFFFFF', padding: '36px', borderRadius: '20px', boxShadow: `0 15px 50px rgba(0,0,0,0.3), ${theme.glow}`, border: `1px solid ${theme.accent}40`, transition: 'all 0.4s ease' }}>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px', borderBottom: `1px solid ${theme.accent}30`, paddingBottom: '18px', flexWrap: 'wrap', gap: '16px' }}>
@@ -456,42 +457,39 @@ export default function Dashboard() {
                                     <Menu style={{ width: '18px', height: '18px' }} />
                                 </button>
                             </div>
-                            <div style={{ height: '300px', width: '100%' }}>
+
+                            <div style={{ height: '280px', width: '100%' }}>
                                 <ResponsiveContainer width="100%" height="100%">
                                     {chart.type === 'bar' ? (
                                         <BarChart data={chart.data}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.15)" vertical={false} />
-                                            <XAxis dataKey="name" stroke="#FFFFFF" tick={{ fontSize: 12, fill: '#FFFFFF', fontWeight: '600' }} />
-                                            <YAxis stroke="#FFFFFF" tick={{ fontSize: 12, fill: '#FFFFFF', fontWeight: '600' }} />
-                                            <Tooltip contentStyle={{ backgroundColor: '#0F172A', borderColor: theme.accent, borderRadius: '10px', color: '#FFF', boxShadow: theme.glow }} />
-                                            <Bar dataKey={chart.dataKey} radius={[6, 6, 0, 0]}>
-                                                {chart.data.map((entry, i) => (
-                                                    <Cell key={`bar-${i}`} fill={theme.palette[i % theme.palette.length]} />
-                                                ))}
-                                            </Bar>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                            <XAxis dataKey="name" stroke="#94A3B8" fontSize={11} />
+                                            <YAxis stroke="#94A3B8" fontSize={11} />
+                                            <Tooltip contentStyle={{ backgroundColor: '#0F172A', border: `1px solid ${theme.accent}`, borderRadius: '8px', color: '#FFF' }} />
+                                            <Bar dataKey={chart.dataKey} fill={theme.primary} radius={[6, 6, 0, 0]} />
                                         </BarChart>
                                     ) : chart.type === 'line' ? (
                                         <LineChart data={chart.data}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.15)" vertical={false} />
-                                            <XAxis dataKey="name" stroke="#FFFFFF" tick={{ fontSize: 12, fill: '#FFFFFF', fontWeight: '600' }} />
-                                            <YAxis stroke="#FFFFFF" tick={{ fontSize: 12, fill: '#FFFFFF', fontWeight: '600' }} />
-                                            <Tooltip contentStyle={{ backgroundColor: '#0F172A', borderColor: theme.accent, borderRadius: '10px', color: '#FFF', boxShadow: theme.glow }} />
-                                            <Line type="monotone" dataKey={chart.dataKey} stroke={theme.accent} strokeWidth={3} dot={{ r: 6, fill: theme.accent }} />
+                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                            <XAxis dataKey="name" stroke="#94A3B8" fontSize={11} />
+                                            <YAxis stroke="#94A3B8" fontSize={11} />
+                                            <Tooltip contentStyle={{ backgroundColor: '#0F172A', border: `1px solid ${theme.accent}`, borderRadius: '8px', color: '#FFF' }} />
+                                            <Line type="monotone" dataKey={chart.dataKey} stroke={theme.accent} strokeWidth={3} dot={{ fill: theme.primary, r: 5 }} />
                                         </LineChart>
                                     ) : chart.type === 'area' ? (
                                         <AreaChart data={chart.data}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.15)" vertical={false} />
-                                            <XAxis dataKey="name" stroke="#FFFFFF" tick={{ fontSize: 12, fill: '#FFFFFF', fontWeight: '600' }} />
-                                            <YAxis stroke="#FFFFFF" tick={{ fontSize: 12, fill: '#FFFFFF', fontWeight: '600' }} />
-                                            <Tooltip contentStyle={{ backgroundColor: '#0F172A', borderColor: theme.accent, borderRadius: '10px', color: '#FFF', boxShadow: theme.glow }} />
-                                            <Area type="monotone" dataKey={chart.dataKey} stroke={theme.accent} fill={`${theme.primary}55`} strokeWidth={3} />
+                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                            <XAxis dataKey="name" stroke="#94A3B8" fontSize={11} />
+                                            <YAxis stroke="#94A3B8" fontSize={11} />
+                                            <Tooltip contentStyle={{ backgroundColor: '#0F172A', border: `1px solid ${theme.accent}`, borderRadius: '8px', color: '#FFF' }} />
+                                            <Area type="monotone" dataKey={chart.dataKey} stroke={theme.primary} fill={`${theme.primary}40`} strokeWidth={2} />
                                         </AreaChart>
                                     ) : (
                                         <PieChart>
-                                            <Tooltip contentStyle={{ backgroundColor: '#0F172A', borderColor: theme.accent, borderRadius: '10px', color: '#FFF', boxShadow: theme.glow }} />
-                                            <Pie data={chart.data} dataKey={chart.dataKey} nameKey="name" cx="50%" cy="50%" outerRadius={90} label>
-                                                {chart.data.map((entry, i) => (
-                                                    <Cell key={`cell-${i}`} fill={theme.palette[i % theme.palette.length]} />
+                                            <Tooltip contentStyle={{ backgroundColor: '#0F172A', border: `1px solid ${theme.accent}`, borderRadius: '8px', color: '#FFF' }} />
+                                            <Pie data={chart.data} dataKey={chart.dataKey} nameKey="name" cx="50%" cy="50%" outerRadius={85} label>
+                                                {chart.data?.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={theme.palette[index % theme.palette.length]} />
                                                 ))}
                                             </Pie>
                                         </PieChart>
@@ -504,31 +502,28 @@ export default function Dashboard() {
 
             </div>
 
-            {/* النافذة المنبثقة للتفاصيل */}
             {activeModalChart && (
-                <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, direction: lang === 'AR' ? 'rtl' : 'ltr' }}>
-                    <div style={{ backgroundColor: '#0F172A', border: `2px solid ${theme.accent}`, padding: '28px', borderRadius: '16px', width: '480px', color: '#FFF', boxShadow: '0 20px 50px rgba(0,0,0,0.5)', position: 'relative' }}>
-                        <button
-                            onClick={() => setActiveModalChart(null)}
-                            style={{ position: 'absolute', top: '16px', [lang === 'AR' ? 'left' : 'right']: '16px', background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}
-                        >
-                            <X style={{ width: '20px', height: '20px' }} />
-                        </button>
-                        <h3 style={{ margin: '0 0 14px 0', fontSize: '18px', fontWeight: 'bold', color: theme.accent }}>
-                            {lang === 'AR' ? 'تحليل أداء الذكاء الاصطناعي: ' : 'AI Performance Analysis: '} {activeModalChart.title}
-                        </h3>
-                        <p style={{ fontSize: '14px', lineHeight: '1.8', color: '#CBD5E1', margin: '0 0 24px 0', textAlign: lang === 'AR' ? 'right' : 'left' }}>
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+                    <div style={{ backgroundColor: '#1E293B', border: `1px solid ${theme.accent}`, borderRadius: '16px', padding: '28px', maxWidth: '500px', width: '100%', color: '#FFF', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                            <h3 style={{ margin: 0, fontSize: '18px', color: theme.accent }}>{activeModalChart.title}</h3>
+                            <button onClick={() => setActiveModalChart(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}>
+                                <X style={{ width: '20px', height: '20px' }} />
+                            </button>
+                        </div>
+                        <p style={{ fontSize: '14px', lineHeight: '1.6', color: '#CBD5E1', marginBottom: '24px' }}>
                             {activeModalChart.description}
                         </p>
                         <button
                             onClick={() => setActiveModalChart(null)}
-                            style={{ width: '100%', padding: '10px', backgroundColor: theme.primary, color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}
+                            style={{ width: '100%', padding: '10px', backgroundColor: theme.primary, color: '#FFF', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
                         >
                             {lang === 'AR' ? 'إغلاق' : 'Close'}
                         </button>
                     </div>
                 </div>
             )}
+
         </div>
     );
 }
