@@ -58,11 +58,17 @@ def run_one(path, policy):
             "critic_verdict": (s.findings.get("review") or {}).get("verdict"), "seconds": round(time.time() - t0, 1), "models": m["models_used"]}
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(); ap.add_argument("--policy", default="approve_all"); ap.add_argument("--only"); a = ap.parse_args()
-    results = [run_one(p, a.policy) for p in sorted(DATA.glob("*.csv")) if not a.only or p.stem.startswith(a.only)]
+    ap = argparse.ArgumentParser(); ap.add_argument("--policy", default="approve_all"); ap.add_argument("--only"); ap.add_argument("--sleep", type=float, default=0, help="seconds between traps (rate limits)"); a = ap.parse_args()
+    results = []
+    for p in sorted(DATA.glob("*.csv")):
+        if a.only and not p.stem.startswith(a.only): continue
+        r = run_one(p, a.policy); results.append(r)
+        if r["error"] and "all providers failed" in r["error"]:
+            print(f"\nSTOPPED: {r['error']}\nFix the provider problem (keys, quota, model id) and rerun; remaining traps skipped."); break
+        time.sleep(a.sleep)
     tot = ok = 0
     for r in results:
         print(f"\n{r['trap']}  steps={r['steps']} tools={r['tool_calls']} errs={r['tool_errors']} rejected={r['rejections']} "
               f"critic={r['critic_rounds']}({r['critic_verdict']}) {r['seconds']}s {r['models']}" + (f"  ERROR {r['error']}" if r["error"] else ""))
         for k, v in r["checks"].items(): print(f"   {'PASS' if v else 'FAIL'}  {k}"); tot += 1; ok += bool(v)
-    print(f"\nSCORE: {ok}/{tot}"); (DATA / "results.json").write_text(json.dumps(results, indent=2, ensure_ascii=False))
+    print(f"\nSCORE: {ok}/{tot}" if tot else "\nNo checks ran (LLM errors above)"); (DATA / "results.json").write_text(json.dumps(results, indent=2, ensure_ascii=False))

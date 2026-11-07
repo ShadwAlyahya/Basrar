@@ -95,7 +95,7 @@ def test_guards():
 
 def test_llm_fallback():
     import openai
-    from app.agent import config
+    from agent import config
     calls = []
     class Msg:
         def __init__(s, c): s.content = c; s.tool_calls = None
@@ -114,5 +114,32 @@ def test_llm_fallback():
     assert out["content"] == "hello" and calls == ["p1", "p1", "p2"], calls
     print("retry + fallback OK")
 
+def test_quota_and_signatures():
+    import openai
+    from agent import config
+    calls = []
+    class Msg:
+        def __init__(s, c): s.content = c; s.tool_calls = None
+    class Resp:
+        def __init__(s, c): s.choices = [types.SimpleNamespace(message=Msg(c))]
+    class Quota(openai.RateLimitError):
+        message = "Rate limit exceeded: free-models-per-day"
+    class C:
+        def __init__(s, name, fail): s.name = name; s.chat = types.SimpleNamespace(completions=s); s.fail = fail; s.seen = None
+        def create(s, **kw):
+            calls.append(s.name); s.seen = kw["messages"]
+            if s.fail: raise Quota.__new__(Quota)
+            return Resp("ok")
+    l = llm_mod.LLM(); g = C("gemini", False); l._clients = {"p1": C("p1", True), "gemini": g}
+    config.ROLES["analyst"] = [("p1", "m1"), ("gemini", "m2")]
+    llm_mod.time.sleep = lambda *_: None
+    hist = [{"role": "user", "content": "x"}, {"role": "assistant", "content": "", "tool_calls": [{"id": "1", "type": "function", "function": {"name": "kpi", "arguments": "{}"}}]},
+            {"role": "tool", "tool_call_id": "1", "content": "{}"}]
+    assert l.chat("analyst", hist)["content"] == "ok"
+    assert calls == ["p1", "gemini"], f"daily quota must not be retried: {calls}"
+    assert g.seen[1]["tool_calls"][0]["extra_content"]["google"]["thought_signature"], "gemini needs a signature on echoed tool calls"
+    calls.clear(); l.chat("analyst", hist); assert calls == ["gemini"], "exhausted model must be skipped during cooldown"
+    print("quota cooldown + gemini signatures OK")
+
 if __name__ == "__main__":
-    test_guards(); test_llm_fallback(); test_agent_flow(); print("ALL PASSED")
+    test_guards(); test_llm_fallback(); test_quota_and_signatures(); test_agent_flow(); print("ALL PASSED")

@@ -1,7 +1,7 @@
 [
   {
     "trap": "t1_dupes_negative_profit",
-    "error": "LLMError: all providers failed for role 'analyst': openrouter/nvidia/nemotron-3-ultra-550b-a55b:free: RateLimitError; gemini/gemini-flash-latest: InternalServerError",
+    "error": "LLMError: all providers failed for role 'analyst': openrouter/nvidia/nemotron-3-ultra-550b-a55b:free: daily quota exhausted; gemini/gemini-flash-latest: APITimeoutError Request timed out.",
     "checks": {},
     "steps": 1,
     "tool_calls": 0,
@@ -9,63 +9,7 @@
     "rejections": 0,
     "critic_rounds": 0,
     "critic_verdict": null,
-    "seconds": 112.9,
+    "seconds": 141.9,
     "models": {}
-  },
-  {
-    "trap": "t2_text_formats",
-    "error": "LLMError: all providers failed for role 'analyst': openrouter/nvidia/nemotron-3-ultra-550b-a55b:free: RateLimitError; gemini/gemini-flash-latest: InternalServerError",
-    "checks": {},
-    "steps": 1,
-    "tool_calls": 0,
-    "tool_errors": 0,
-    "rejections": 0,
-    "critic_rounds": 0,
-    "critic_verdict": null,
-    "seconds": 83.8,
-    "models": {}
-  },
-  {
-    "trap": "t3_high_missing",
-    "error": "LLMError: all providers failed for role 'analyst': openrouter/nvidia/nemotron-3-ultra-550b-a55b:free: RateLimitError; gemini/gemini-flash-latest: InternalServerError",
-    "checks": {},
-    "steps": 1,
-    "tool_calls": 0,
-    "tool_errors": 0,
-    "rejections": 0,
-    "critic_rounds": 0,
-    "critic_verdict": null,
-    "seconds": 22.8,
-    "models": {}
-  },
-  {
-    "trap": "t4_seasonal_peak",
-    "error": "LLMError: all providers failed for role 'analyst': openrouter/nvidia/nemotron-3-ultra-550b-a55b:free: RateLimitError; gemini/gemini-flash-latest: HTTP 400",
-    "checks": {},
-    "steps": 2,
-    "tool_calls": 1,
-    "tool_errors": 0,
-    "rejections": 0,
-    "critic_rounds": 0,
-    "critic_verdict": null,
-    "seconds": 109.1,
-    "models": {
-      "gemini/gemini-flash-latest": 1
-    }
-  },
-  {
-    "trap": "t5_outlier_typos",
-    "error": "LLMError: all providers failed for role 'analyst': openrouter/nvidia/nemotron-3-ultra-550b-a55b:free: RateLimitError; gemini/gemini-flash-latest: HTTP 400",
-    "checks": {},
-    "steps": 2,
-    "tool_calls": 1,
-    "tool_errors": 0,
-    "rejections": 0,
-    "critic_rounds": 0,
-    "critic_verdict": null,
-    "seconds": 17.9,
-    "models": {
-      "gemini/gemini-flash-latest": 1
-    }
   }
 ]
