@@ -1,25 +1,35 @@
-"""Deterministic analysis tools. Every analytic result is stored as Evidence (E1, E2, ...).
-Process rules are enforced HERE (in code), not only in the prompt."""
 import json, os, re, uuid, warnings
 import numpy as np, pandas as pd
 from .state import Session, log
 from .guard import numbers_in, supported, unverified, evidence_pool, fact_pool, _AR
 
 warnings.filterwarnings("ignore")
-SAFE_OPS = {"strip_whitespace", "parse_dates", "cast_numeric"}                       # auto-applied + logged
-SENSITIVE_OPS = {"drop_duplicates", "impute", "drop_missing_rows", "cap_outliers"}   # need user approval
+SAFE_OPS = {"strip_whitespace", "parse_dates", "cast_numeric"}
+SENSITIVE_OPS = {"drop_duplicates", "impute", "drop_missing_rows", "cap_outliers"}
 ANALYTIC = {"aggregate", "correlations", "distribution", "forecast", "what_if", "kpi", "calc"}
 REQUIRED = {"parse_dates": ["column"], "cast_numeric": ["column"], "drop_missing_rows": ["column"],
             "impute": ["column"], "cap_outliers": ["column"]}
-REDACT = os.getenv("REDACT_SAMPLES") == "1"      # set to 1 to never send raw cell values to the LLM
+REDACT = os.getenv("REDACT_SAMPLES") == "1"
 
 def _j(o):
-    if isinstance(o, (np.bool_, bool)): return bool(o)
-    if isinstance(o, np.integer): return int(o)
-    if isinstance(o, (float, np.floating)): return None if np.isnan(o) else round(float(o), 4)
-    if isinstance(o, (pd.Timestamp, pd.Period)): return str(o)
-    if isinstance(o, dict): return {str(k): _j(v) for k, v in o.items()}
-    if isinstance(o, (list, tuple)): return [_j(x) for x in o]
+    if o is None:
+        return None
+    if isinstance(o, (np.bool_, bool)): 
+        return bool(o)
+    if isinstance(o, np.integer): 
+        return int(o)
+    if isinstance(o, (float, np.floating)): 
+        if np.isnan(o) or np.isinf(o) or np.isneginf(o): 
+            return None
+        return round(float(o), 4)
+    if isinstance(o, (pd.Timestamp, pd.Period)): 
+        return str(o)
+    if isinstance(o, dict): 
+        return {str(k): _j(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)): 
+        return [_j(x) for x in o]
+    if pd.isna(o) and not isinstance(o, str):
+        return None
     return o
 
 def _ev(s: Session, tool, args, result):
@@ -32,7 +42,6 @@ def _col(s, c):
         raise ValueError(f"Unknown column '{c}'. Available: {list(map(str, s.work.columns))}")
     return s.work[c]
 
-# ------------------------------------------------------------------ understanding
 def profile_dataset(s, **_):
     df = s.work; cols = []
     for c in df.columns:
@@ -96,7 +105,6 @@ def inspect_rows(s, condition, column=None, limit=8, **_):
         res["share_of_column_total_pct"] = round(float(sub[column].sum() / df[column].sum() * 100), 2) if df[column].sum() else None
     return _ev(s, "inspect_rows", {"column": column, "condition": condition}, res)
 
-# ------------------------------------------------------------------ cleaning
 def _apply(df, op, p):
     df = df.copy(); affected = 0; extra = {}
     if op == "strip_whitespace":
@@ -169,7 +177,6 @@ def propose_cleaning(s, operation, params=None, reason="", **_):
             "note": "NOT executed. Do not assume it happened. Finish your turn by explaining to the user what you found and recommend."}
 
 def apply_decisions(s, decisions: dict):
-    """decision: True = approve, False = reject, dict = approve with parameter overrides (user edited it)."""
     out = []
     for pid, dec in decisions.items():
         a = s.pending.pop(pid, None)
@@ -198,7 +205,6 @@ def verify_cleaning(s, **_):
                "audit_ops_applied": [a["op"] for a in s.audit if a.get("decision") != "rejected"],
                "tip": "Drift is acceptable only if explained by an approved operation in the audit log; mention it in the findings."})
 
-# ------------------------------------------------------------------ analysis
 def kpi(s, metric=None, agg="sum", **_):
     df = s.work
     if agg == "count" or not metric: return _ev(s, "kpi", {"metric": metric, "agg": "count"}, {"value": len(df), "metric": "rows"})
@@ -266,7 +272,6 @@ def what_if(s, target, driver, pct_change, **_):
                 "assumption": "linear relationship, other factors constant"})
 
 def calc(s, op, a, b, a_evidence, b_evidence, label="", **_):
-    """Derived numbers (change, ratio, share) with provenance: both inputs must exist in cited evidence."""
     for v, e in ((a, a_evidence), (b, b_evidence)):
         if e not in s.evidence: raise ValueError(f"unknown evidence {e}")
         if not supported(float(v), 4, evidence_pool(s, [e])): raise ValueError(f"{v} is not a value in {e}")
@@ -275,7 +280,6 @@ def calc(s, op, a, b, a_evidence, b_evidence, label="", **_):
     if res is None: raise ValueError("op must be diff|sum|pct_change|ratio|share_pct and b must be non-zero")
     return _ev(s, "calc", {"op": op, "a_evidence": a_evidence, "b_evidence": b_evidence}, {"op": op, "a": a, "b": b, "result": res, "label": label})
 
-# ------------------------------------------------------------------ visualization + validated findings
 def create_chart(s, evidence_id, chart_type, title, description, **_):
     ev = s.evidence.get(evidence_id)
     if not ev or "rows" not in ev["result"]: raise ValueError("evidence_id must reference a result containing 'rows'")
@@ -289,7 +293,6 @@ def _dec(n):
     t = repr(float(n)); return 6 if "e" in t else (0 if t.endswith(".0") else len(t.split(".")[1]))
 
 def _kpi_ok(v, pool):
-    """KPI display strings like '$128,430', '14.2%', '1.2M' must match the cited evidence (rounding allowed)."""
     m = re.search(r"(-?\d[\d,]*\.?\d*)\s*([kKmMbB])?(?![A-Za-z])", str(v).translate(_AR))
     if not m: return True
     raw = m.group(1).replace(",", ""); x = float(raw); dec = len(raw.split(".")[1]) if "." in raw else 0
@@ -341,7 +344,6 @@ def submit_findings(s, summary, kpis, insights, recommendations, **_):
 DISPATCH = {f.__name__: f for f in [profile_dataset, detect_issues, inspect_rows, propose_cleaning, verify_cleaning, kpi, aggregate,
             correlations, distribution, forecast, what_if, calc, create_chart, submit_findings]}
 
-# ------------------------------------------------------------------ OpenAI-format tool schemas
 S, N, B = {"type": "string"}, {"type": "number"}, {"type": "boolean"}
 E = lambda *v: {"type": "string", "enum": list(v)}
 def _t(name, desc, props, req=()):
